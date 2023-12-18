@@ -47,8 +47,8 @@ def get_financial_statements_factor_vb2015(corp_code, fs_list):
         {"stock_code":corp_code,
         "year":int(dbs_columns[i-7][0][:4]),
         "quater":month2quater[int(dbs_columns[i-7][0][4:6])],
-        "current_assets":fs_factors[fs_fac_idx_b2015["유동부채"]],
-        "noncurrent_asset":fs_factors[fs_fac_idx_b2015["비유동부채"]],
+        "current_assets":fs_factors[fs_fac_idx_b2015["유동자산"]],
+        "noncurrent_asset":fs_factors[fs_fac_idx_b2015["비유동자산"]],
         "full_assets":fs_factors[fs_fac_idx_b2015["자산총계"]],
         "current_liabilities":fs_factors[fs_fac_idx_b2015["유동부채"]],
         "noncurrent_liabilities":fs_factors[fs_fac_idx_b2015["비유동부채"]],
@@ -73,8 +73,8 @@ def get_financial_statements_factor_va2015(corp_code, fs_list):
         {"stock_code":corp_code,
         "year":int(dbs_columns[i-7][0][:4]),
         "quater":month2quater[int(dbs_columns[i-7][0][4:6])],
-        "current_assets":fs_factors[fs_fac_idx_a2015["유동부채"]],
-        "noncurrent_asset":fs_factors[fs_fac_idx_a2015["비유동부채"]],
+        "current_assets":fs_factors[fs_fac_idx_a2015["유동자산"]],
+        "noncurrent_asset":fs_factors[fs_fac_idx_a2015["비유동자산"]],
         "full_assets":fs_factors[fs_fac_idx_a2015["자산총계"]],
         "current_liabilities":fs_factors[fs_fac_idx_a2015["유동부채"]],
         "noncurrent_liabilities":fs_factors[fs_fac_idx_a2015["비유동부채"]],
@@ -97,31 +97,47 @@ def get_year_and_interval(c_index):
     gap = int(end[4:6])- int(begin[4:6]) + 1
     return year, begin_month, gap
     
+def extract_essential_income_statement_info(is_factor):
+    return {
+        "revenue":is_factor[is_fac_idx_b2015["매출"]],
+        "gross_progit":is_factor[is_fac_idx_b2015["매출총이익"]],
+        "operating_income":is_factor[is_fac_idx_b2015["영업이익"]],
+        "finance_cost": is_factor[is_fac_idx_b2015["금융비용"]],
+        "income_befor_tax":is_factor[is_fac_idx_b2015["법인세비용차감전순이익"]],
+        "net_profit":is_factor[is_fac_idx_b2015["당기순이익"]],
+        "diluted_eps":is_factor[is_fac_idx_b2015["희석주당이익"]]}
+    
 def get_income_statements_factor(corp_code, fs_list):
     dis=fs_list['is']
     is_columns = dis.columns.to_flat_index()[7:]
     num_columns = len(is_columns)
     res_is_list = []
+    res12={}
+    res9={}
+    # 4분기보고서 내용 없이 연간보고서만 나와서 연간보고서에서 3분기 까지 누적값을 빼서 
+    # 4분기 손익계산서 내용을 구하기 위함
+    for n,i in enumerate(dis.columns.to_flat_index()[7:]):
+        start, end = i[0].split('-')    
+        gap = int(end[4:6]) - int(start[4:6])+1   
+        if gap==12:
+            res12[start[:4]]=n
+        elif gap==9:
+            res9[start[:4]]=n
+            
+    # 1,2,3 분기 내용 추출
     for i in range(7, 7+num_columns,1):
         c_index = is_columns[i-7][0]
         year, begin_month, gap = get_year_and_interval(c_index)
         # 분기 손익 정보인지 누적 정보인지 확인하기 위해
         is_factor = dis.iloc[:,i]
         if gap==3 and not np.isnan(is_factor.loc[0]):
-            res_is_list.append(
-                {
-                    "corp_code":corp_code,
-                    "year": year,
-                    "quarter":month2quater[begin_month],
-                    "revenue":is_factor[is_fac_idx_b2015["매출"]],
-                    "gross_progit":is_factor[is_fac_idx_b2015["매출총이익"]],
-                    "operating_income":is_factor[is_fac_idx_b2015["영업이익"]],
-                    "finance_cost": is_factor[is_fac_idx_b2015["금융비용"]],
-                    "income_befor_tax":is_factor[is_fac_idx_b2015["법인세비용차감전순이익"]],
-                    "net_profit":is_factor[is_fac_idx_b2015["당기순이익"]],
-                    "diluted_eps":is_factor[is_fac_idx_b2015["희석주당이익"]]
-                 }
-            )
+            is_info = extract_essential_income_statement_info(is_factor)
+            is_info.update({"corp_code":corp_code,
+                            "year": year,
+                            "quarter":month2quater[begin_month]})
+            res_is_list.append(is_info)
+            
+    
     return res_is_list
         
 
