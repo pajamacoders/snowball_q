@@ -17,6 +17,7 @@ def get_account_value_by_key(table, keys):
             val = int(float(table[table.account_nm==k].thstrm_amount.to_list()[0].replace(',','')))
             break
     if val is None:
+        print(f'debug:{keys}')
         print('debug')
     return val
 
@@ -34,15 +35,17 @@ def get_fs_info_by_quarter(fs):
     cur_liabilities = get_account_value_by_key(qfs, cur_liability_keys)
     noncur_liability_keys = ["비유동부채", 'Ⅱ. 비유동부채']
     noncur_liabilities = get_account_value_by_key(qfs, noncur_liability_keys)
+    if noncur_liabilities is None:
+        noncur_liabilities=0
     full_liability_keys = ["부채총계"]
     full_liabilities = get_account_value_by_key(qfs, full_liability_keys)
-    cap_keys = ["자본금"]
+    cap_keys = ["자본금", "납입자본"]
     issued_capital = get_account_value_by_key(qfs, cap_keys)
-    retain_earning_keys = ["이익잉여금(결손금)", "이익잉여금"]
+    retain_earning_keys = ["이익잉여금(결손금)", "이익잉여금", "결손금"]
     retain_ernings = get_account_value_by_key(qfs, retain_earning_keys)
     if retain_ernings is None:
         retain_ernings=0
-    full_equity_keys = ["자본총계", "지배기업의 소유주자본"]
+    full_equity_keys = ["지배기업의 소유주에게 귀속되는 자본", "지배기업의 소유주자본", "자본총계"]
     full_equity = get_account_value_by_key(qfs, full_equity_keys)
         
     return {
@@ -79,22 +82,26 @@ def get_is_info_by_quater(fs):
     revenue = get_account_value_by_key(is_info, revenue_keys)
     gross_profit_keys = ["매출총이익",'매출총이익(손실)']
     gross_profit = get_account_value_by_key(is_info, gross_profit_keys)
-    operating_income_keys = ["영업이익(손실)", "영업이익", "영업손실",'영업손실(이익)']
+    operating_income_keys = ["영업이익(손실)", "영업이익", "영업손실",'영업손실(이익)', '영업손익']
     operating_income = get_account_value_by_key(is_info, operating_income_keys)
     fin_cost_key = ["금융비용", "금융원가", "순금융수익(원가)", '순금융원가(수익)','금융수익']
     fin_cost = get_account_value_by_key(is_info, fin_cost_key)
-    income_bf_tax_keys = ["법인세비용차감전순이익(손실)","법인세비용차감전순이익", "법인세비용차감전순손실"]
+    income_bf_tax_keys = ["법인세비용차감전순이익(손실)","법인세비용차감전순이익", \
+        "법인세비용차감전순손실", '법인세비용차감전순손익']
     income_bf_tax = get_account_value_by_key(is_info, income_bf_tax_keys)
     if income_bf_tax is None:
         income_bf_tax=float(is_info[is_info.account_nm=="당기순이익(손실)"].thstrm_amount.to_list()[0])+float(is_info[is_info.account_nm=="법인세비용"].thstrm_amount.to_list()[0])
     
-    net_profit_keys = ["당기순이익(손실)","당기순이익", '당기순손실',"분기순이익(손실)", \
-        '분기순손실', "반기순손실", "반기순이익(손실)"]
+    net_profit_keys = ["당기순이익(손실)","당기순이익", '당기순손실','당기이익(손실)',\
+        "분기순이익(손실)",'분기순손익', '분기순손실', \
+            "반기순손실", '반기순손익', "반기순이익(손실)"]
     net_profit = get_account_value_by_key(is_info, net_profit_keys)
     eps_keys =["희석주당이익(손실)", "희석주당순이익(손실)","희석주당이익",'희석주당순손실',\
-        "계속영업기본주당이익(손실)", "계속영업기본및희석주당순손익",\
-        '계속사업 희석주당순이익(손실)','계속영업희석주당이익(손실)',\
-        '기본주당순손실', '기본주당이익(손실)', '희석주당반기순손실','희석반기주당이익(손실)']
+        '보통주 희석주당순손익',\
+        '계속영업기본 및 희석주당손실', "계속영업기본주당이익(손실)", "계속영업기본및희석주당순손익",\
+        '계속사업 희석주당순이익(손실)','계속사업희석주당순이익(손실)', '계속영업희석주당이익(손실)',\
+        '기본 및 희석주당이익', '기본주당순손실', '기본주당이익', \
+            '기본주당이익(손실)', '희석주당반기순손실','희석반기주당이익(손실)']
     eps = get_account_value_by_key(is_info, eps_keys)
     return {
         "revenue":revenue,

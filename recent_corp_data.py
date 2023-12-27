@@ -50,8 +50,8 @@ def filter_non_corporation(stock_list):
     prior_share_mask = stock_list.Code.apply(lambda x: check_suffix(x, target_suffix))
     stock_list = stock_list[prior_share_mask]
     #리츠주 제거, 리츠 주는 이름에 대부분 "n호" 라는 패턴이 들어가므로 이를 이요해 제거
-    reit_pattern = r'\d+호' 
-    stock_list = stock_list[~stock_list["Name"].str.contains(reit_pattern)]
+    for reit_pattern in [r'\d+호', r'리츠']:
+        stock_list = stock_list[~stock_list["Name"].str.contains(reit_pattern)]
     # 스팩 주 제거
     spac_pattern = r'스팩' 
     stock_list = stock_list[~stock_list["Name"].str.contains(spac_pattern)]
@@ -128,7 +128,12 @@ def get_corp_fs_data_from_dart(status_results:list, corp, year):
             if q_report_all.shape[0]==0:
                 q_report_all=dart.finstate_all(corp.corp_code, year, reprt_code=code, fs_div='OFS')
             # q_report=dart.finstate(corp.corp_code, year, reprt_code=code)
+            
             if q_report_all.shape[0]!=0:
+                
+                if q_report_all.currency[0]!='KRW':
+                    return status_results, True
+                
                 info = decompose_report_to_fs_is_cf(corp.corp_code, year, i+1, q_report_all)
                 info = add_total_stock_quantity_status(info, corp.corp_code, \
                     year, reprt_code=code)
@@ -150,7 +155,13 @@ def get_corp_fs_data_from_dart(status_results:list, corp, year):
                 for k in is_keys:
                     status_results[-1][k] -= status_results[i][k]
                 
-    return status_results
+    return status_results, False
+
+def check_event(code, year:int):
+    event_list=['부도발생', '영업정지', '회생절차', '해산사유', '유상증자', '무상증자', '유무상증자', '감자', '관리절차개시', '해외상장결정', '해외상장폐지결정', '해외상장폐지', '전환사채발행', '신주인수권부사채발행', '교환사채발행', '관리절차중단', '조건부자본증권발행', '자산양수도', '타법인증권양도', '유형자산양도', '유형자산양수', '타법인증권양수', '영업양도', '영업양수', '자기주식취득신탁계약해지', '자기주식취득신탁계약체결', '자기주식처분', '자기주식취득', '주식교환', '회사분할합병', '회사분할', '회사합병', '사채권양수', '사채권양도결정']
+    res={}
+    for e in event_list:
+        dart.event(code, e, f'year')
 
 if __name__=="__main__":
     #기업정보
@@ -171,43 +182,22 @@ if __name__=="__main__":
         reports = corp.search_filings(bgn_de='20100101', pblntf_detail_ty=['a003'], \
             last_reprt_at='Y', page_no=1, page_count=200)
         begin_year = int(reports[-1].rcept_dt[:4])
+        end_year = int(reports[0].rcept_dt[:4])
         fs_quarter=None
         total_res=[]
-        try:
-            # fs_quarter = corp.extract_fs(bgn_de=f'{begin_year}0101', end_de='20150101',report_tp=['quarter'], separate=False, skip_error=False)
-            # fs_list = get_financial_statements_factor_vb2015(row.Code, fs_quarter)
-            begin_year=max(begin_year, 2022)
-            fs_quarter = corp.extract_fs(bgn_de=f'{begin_year}0101', end_de='20231231',report_tp=['quarter'], separate=False, skip_error=False)
-            if fs_quarter is not None:
-                fs_list = get_financial_statements_factor_va2015(row.Code, fs_quarter)
-            fs_list = get_financial_statements_factor_va2015(row.Code, fs_quarter)
-        except NotFoundConsolidated as e:
-            # fs_quarter = corp.extract_fs(bgn_de=f'{begin_year}0101', report_tp=['quarter'], separate=True)
-            begin_year=max(begin_year, 2022)
-            fs_quarter = corp.extract_fs(bgn_de=f'{begin_year}0101', end_de='20231231',\
-                report_tp=['quarter'], separate=True, skip_error=False)
-            if fs_quarter is not None:
-                fs_list = get_financial_statements_factor_va2015(row.Code, fs_quarter)
-        if fs_quarter is not None:
-                fs_list = get_financial_statements_factor_vb2015(row.Code, fs_quarter)
-                dbs = fs_quarter['bs']
-                # dbs_columns = dbs.columns.to_flat_index()[7:]
-                #bs_labels = fs_quarter.labels['bs']
-                # dis=fs_quarter['is']
-                # is_labels = dis.columns.to_flat_index()
-                is_list = get_income_statements_factor(row.Code, fs_quarter)
-                dcf=fs_quarter['bs']
-                cf_labels = dcf.columns.to_flat_index()
-                print(corp)
-        else:
-            for year in range(begin_year, 2023):
-                status_results=[]
-                get_corp_fs_data_from_dart(status_results, corp, year)
-                total_res+=status_results
-                    
-        corp_info['fn_state']=total_res
-        write_to_file(corp_info, f"data_files/{corp.corp_code}.json")
-        handled_corp_code_list.append(corp.corp_code)
-        time.sleep(20)
+        begin_year=max(begin_year, 2022)
+        skip=False
+        for year in range(begin_year, end_year):
+            status_results=[]
+            status_results, skip = get_corp_fs_data_from_dart(status_results, corp, year)
+            if skip:
+                break
+            total_res+=status_results
+            
+        if not skip:
+            corp_info['fn_state']=total_res
+            write_to_file(corp_info, f"data_files/{corp.corp_code}.json")
+            handled_corp_code_list.append(corp.corp_code)
+            time.sleep(20)
 
     print(st_list)
